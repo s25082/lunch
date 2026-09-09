@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(page_title="월간 학교 급식 달력", page_icon="📅", layout="wide")
 st.title("📅 우리 학교 월간 급식 달력")
 st.caption(
-    "선택한 월의 급식 메뉴와 가격 정보를 주간 달력 형태로 한눈에"
+    "선택한 월의 급식 메뉴와 추정 재료 총 단가를 주간 달력 형태로"
     " 확인합니다."
 )
 
@@ -51,6 +51,32 @@ def replace_allergy_codes(dish_text, convert_to_text=True):
   return re.sub(pattern, convert_match, dish_text)
 
 
+def estimate_meal_cost(dish_lines):
+  """메뉴 텍스트를 분석하여 대략적인 재료 총 단가를 추정합니다. (NEIS API는 가격을 제공하지 않으므로 시뮬레이션 계산)"""
+  base_cost = 2200  # 기본 쌀, 부식, 국물 등 기본 단가
+  additional_cost = 0
+
+  full_text = "".join(dish_lines)
+
+  # 주요 식재료 키워드별 가중치 부여
+  if any(k in full_text for k in ["쇠고기", "한우", "갈비", "스테이크"]):
+    additional_cost += 1500
+  if any(
+      k in full_text for k in ["돼지", "돈육", "삼겹", "제육", "폭찹", "수육"]
+  ):
+    additional_cost += 1000
+  if any(k in full_text for k in ["닭", "오리", "치킨"]):
+    additional_cost += 800
+  if any(k in full_text for k in ["새우", "낙지", "오징어", "장어", "게", "회"]):
+    additional_cost += 1200
+  if any(k in full_text for k in ["과일", "딸기", "샤인머스캣", "메론", "망고"]):
+    additional_cost += 700
+  if any(k in full_text for k in ["치즈", "케이크", "요거트", "우유"]):
+    additional_cost += 400
+
+  return base_cost + additional_cost
+
+
 st.sidebar.header("⚙️ 학교 정보 설정")
 office_code = st.sidebar.text_input(
     "시도교육청코드", value="T10", help="기본값: 제주특별자치도교육청(T10)"
@@ -64,20 +90,7 @@ st.sidebar.subheader("🍽️ 알레르기 표시 설정")
 show_allergen_names = st.sidebar.toggle(
     "알레르기 식품명으로 변환",
     value=True,
-    help="체크 시 숫자(예: 1. 5.) 대신 [난류, 대두] 형태로 변환하여 표시합니다.",
-)
-
-# 학교 급식비 단가 설정 (NEIS API는 가격 정보를 제공하지 않으므로 설정값 활용)
-st.sidebar.markdown("---")
-st.sidebar.subheader("💰 급식비 단가 설정")
-default_meal_price = st.sidebar.number_input(
-    "일일/끼니당 참고 가격 (원)",
-    value=0,
-    step=500,
-    help=(
-        "NEIS API에서 가격을 제공하지 않으므로, 참고용 단가를 설정할 수"
-        " 있습니다. (무상급식인 경우 0원)"
-    ),
+    help="체크 시 숫자 대신 식재료명 형태로 변환하여 표시합니다.",
 )
 
 with st.sidebar.expander("📖 나이스 알레르기 번호 안내표"):
@@ -203,9 +216,10 @@ try:
                       f"<span style='font-size:0.85rem;'>• {dish}</span>",
                       unsafe_allow_html=True,
                   )
+                estimated_price = estimate_meal_cost(day_meals["중식"])
                 st.markdown(
-                    f"<span style='font-size:0.75rem; color:gray;'>단가:"
-                    f" {default_meal_price:,}원</span>",
+                    f"<span style='font-size:0.75rem; color:#d97706; font-weight:"
+                    f" bold;'>💰 추정 재료 총 단가: {estimated_price:,}원</span>",
                     unsafe_allow_html=True,
                 )
 
@@ -219,9 +233,10 @@ try:
                       f"<span style='font-size:0.85rem;'>• {dish}</span>",
                       unsafe_allow_html=True,
                   )
+                estimated_price = estimate_meal_cost(day_meals["석식"])
                 st.markdown(
-                    f"<span style='font-size:0.75rem; color:gray;'>단가:"
-                    f" {default_meal_price:,}원</span>",
+                    f"<span style='font-size:0.75rem; color:#d97706; font-weight:"
+                    f" bold;'>💰 추정 재료 총 단가: {estimated_price:,}원</span>",
                     unsafe_allow_html=True,
                 )
 
@@ -235,9 +250,11 @@ try:
                           f"<span style='font-size:0.85rem;'>• {dish}</span>",
                           unsafe_allow_html=True,
                       )
+                    estimated_price = estimate_meal_cost(dishes)
                     st.markdown(
-                        f"<span style='font-size:0.75rem; color:gray;'>단가:"
-                        f" {default_meal_price:,}원</span>",
+                        f"<span style='font-size:0.75rem; color:#d97706;"
+                        f" font-weight: bold;'>💰 추정 재료 총 단가:"
+                        f" {estimated_price:,}원</span>",
                         unsafe_allow_html=True,
                     )
 
